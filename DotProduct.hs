@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs, EmptyDataDecls, FlexibleInstances, DeriveFunctor, DeriveFoldable, TypeFamilies #-}
 module DotProduct where
 
+import Data.Traversable
 import Control.Applicative
 import Data.Foldable hiding (toList)
 import Data.Monoid
@@ -51,6 +52,10 @@ instance Nat n => Applicative (List n) where
   pure x   = replicateL x
   Nil <*> Nil                       = Nil
   (fa `Cons` fas) <*> (a `Cons` as) = fa a `Cons` (fas <*> as)
+
+instance Nat n => Traversable (List n) where
+  traverse _ Nil           = pure Nil
+  traverse f (x `Cons` xs) = Cons <$> f x <*> traverse f xs
 
 list1 :: List Two Integer
 list1 = 1 `Cons` 2 `Cons` Nil
@@ -106,6 +111,10 @@ instance Shape sh => Applicative (Tree sh) where
   pure a                          = replicateT a
   Leaf fa <*> Leaf a              = Leaf (fa a)
   (Branch fs ft) <*> (Branch s t) = Branch (fs <*> s) (ft <*> t)
+
+instance Shape sh => Traversable (Tree sh) where
+  traverse f (Leaf a)     = Leaf <$> f a
+  traverse f (Branch s t) = Branch <$> traverse f s <*> traverse f t
 
 tree1 :: Tree ((), ((), ())) Integer
 tree1 = Branch (Leaf 1) (Branch (Leaf 2) (Leaf 3))
