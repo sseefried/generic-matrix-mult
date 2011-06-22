@@ -10,12 +10,18 @@ import Text.Printf
 data S n
 data Z
 
-data List n a where
-  Nil  :: List Z a 
-  Cons :: Nat n => a -> List n a -> List (S n) a 
-  
+--
+-- Vecs with length encoded. Prevents us from taking the dot product of two lists of
+-- unequal length.
+--
+-- It also helps ensure that the Applicative instance for 'Vec's contains total functions.
+--
+data Vec n a where
+  Nil  :: Vec Z a
+  Cons :: Nat n => a -> Vec n a -> Vec (S n) a
+
 class Nat n where
-  replicateL :: a -> List n a
+  replicateL :: a -> Vec n a
 
 instance Nat Z where
   replicateL _ = Nil
@@ -23,11 +29,11 @@ instance Nat Z where
 instance Nat n => Nat (S n) where
   replicateL a = a `Cons` replicateL a
 
-toList :: List n a  -> [a]
+toList :: Vec n a  -> [a]
 toList Nil = []
 toList (Cons x xs) = x : toList xs
 
-instance Show a => Show (List n a) where
+instance Show a => Show (Vec n a) where
   show = show . toList
 
 infixr 5 `Cons`
@@ -36,31 +42,31 @@ type One   = S Z
 type Two   = S One
 type Three = S Two
 
-instance Nat n => Foldable (List n) where
-  -- foldMap :: Monoid m => (a -> m) -> List n a -> m
+instance Nat n => Foldable (Vec n) where
+  -- foldMap :: Monoid m => (a -> m) -> Vec n a -> m
   foldMap f Nil         = mempty
   foldMap f (Cons x xs) = f x `mappend` foldMap f xs
 
-instance Functor (List n) where
+instance Functor (Vec n) where
   fmap f Nil           = Nil
   fmap f (x `Cons` xs) = f x `Cons` fmap f xs
 
 --
--- Lists have to have the same length
+-- Vecs have to have the same length
 --
-instance Nat n => Applicative (List n) where
+instance Nat n => Applicative (Vec n) where
   pure x   = replicateL x
   Nil <*> Nil                       = Nil
   (fa `Cons` fas) <*> (a `Cons` as) = fa a `Cons` (fas <*> as)
 
-instance Nat n => Traversable (List n) where
+instance Nat n => Traversable (Vec n) where
   traverse _ Nil           = pure Nil
   traverse f (x `Cons` xs) = Cons <$> f x <*> traverse f xs
 
-list1 :: List Two Integer
+list1 :: Vec Two Integer
 list1 = 1 `Cons` 2 `Cons` Nil
 
-list2 :: List Two Integer
+list2 :: Vec Two Integer
 list2 = 3 `Cons` 4 `Cons` Nil
 
 --
@@ -71,12 +77,17 @@ data Pair a = a :# a deriving (Functor, Foldable)
 
 instance Applicative Pair where
   pure x = x :# x
-  (fa :# fb) <*> (a :# b) = fa a :# fb b 
+  (fa :# fb) <*> (a :# b) = fa a :# fb b
 
 --
 -- Trees
 --
 
+--
+-- We specify the shape of a tree using nested-pairs of type unit (i.e. '()').
+-- This is to ensure that we are taking the dot product of two things of the same structure.
+-- It also helps ensures that the Applicative instance for 'Tree's contains total functions.
+--
 class Shape sh where
   replicateT :: a -> Tree sh a
 
@@ -106,7 +117,7 @@ instance Shape sh => Foldable (Tree sh) where
 
 --
 -- Trees have to have the same shape.
--- 
+--
 instance Shape sh => Applicative (Tree sh) where
   pure a                          = replicateT a
   Leaf fa <*> Leaf a              = Leaf (fa a)
@@ -123,7 +134,7 @@ tree2 :: Tree ((), ((), ())) Integer
 tree2 = Branch (Leaf 4) (Branch (Leaf 5) (Leaf 6))
 
 --
--- Generalised dot products. Works on List, Pair, Tree (and much, much more!) 
+-- Generalised dot products. Works on Vec, Pair, Tree (and much, much more!)
 --
 dot :: (Num a, Foldable f, Applicative f) => f a -> f a -> a
 dot x y = (getSum . fold . fmap (Sum . getProduct)) (liftA2 mappend px py)
