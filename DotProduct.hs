@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs, EmptyDataDecls, FlexibleInstances, DeriveFunctor, DeriveFoldable, TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module DotProduct where
 
 import Data.Traversable
@@ -25,19 +26,22 @@ data Vec n a where
 
 class Nat n where
   replicateL :: a -> Vec n a
+  natToInt :: n -> Int
 
 instance Nat Z where
   replicateL _ = Nil
+  natToInt _   = 0
 
 instance Nat n => Nat (S n) where
   replicateL a = a `Cons` replicateL a
+  natToInt (_::S n) = 1 + natToInt (undefined :: n)
 
 toList :: Vec n a  -> [a]
 toList Nil = []
 toList (Cons x xs) = x : toList xs
 
-instance Show a => Show (Vec n a) where
-  show = show . toList
+instance (Nat n, Show a) => Show (Vec n a) where
+  show vec = printf "<%s|%s>" (show . toList $ vec) (show . natToInt $ (undefined :: n))
 
 infixr 5 `Cons`
 

@@ -62,6 +62,12 @@ vvmat33 = (1 `Cons` 2 `Cons` 3 `Cons` Nil) `Cons`
           (4 `Cons` 5 `Cons` 6 `Cons` Nil) `Cons`
           (7 `Cons` 8 `Cons` 9 `Cons` Nil) `Cons` Nil
 
+vvmat35 :: Vec Three (Vec (S (S Three)) Integer)
+vvmat35 = (1 `Cons` 2 `Cons` 3 `Cons` 4 `Cons` 5 `Cons` Nil) `Cons`
+          (6 `Cons` 7 `Cons` 8 `Cons` 9 `Cons` 10 `Cons` Nil) `Cons`
+          (11 `Cons` 12 `Cons` 13 `Cons` 14 `Cons` 15 `Cons` Nil) `Cons` Nil
+
+
 llmat23 :: ZipList (ZipList Integer)
 llmat23 = ZipList [ZipList [1,2,3],
                    ZipList [4,5,6]]
@@ -76,10 +82,10 @@ llmat35 = ZipList [ ZipList [1,2,3,4,5]
                   , ZipList [6,7,8,9,10]
                   , ZipList [11,12,13,14,15]]
 
-ltmat1 :: Vec Two (Tree ((), ((), ())) Integer)
-ltmat1 = (Branch (Leaf 1) (Branch (Leaf 2) (Leaf 3))) `Cons`
+vtmat23 :: Vec Two (Tree ((), ((), ())) Integer)
+vtmat23 = (Branch (Leaf 1) (Branch (Leaf 2) (Leaf 3))) `Cons`
          (Branch (Leaf 4) (Branch (Leaf 5) (Leaf 6))) `Cons` Nil
 
-tlmat2 :: Tree ((), ((), ())) (Vec Two Integer)
-tlmat2 = Branch (Leaf (1 `Cons` 2 `Cons` Nil)) (Branch (Leaf (3 `Cons` 4 `Cons` Nil))
+tvmat32 :: Tree ((), ((), ())) (Vec Two Integer)
+tvmat32 = Branch (Leaf (1 `Cons` 2 `Cons` Nil)) (Branch (Leaf (3 `Cons` 4 `Cons` Nil))
                                                       (Leaf (5 `Cons` 6 `Cons` Nil)))
