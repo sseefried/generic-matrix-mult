@@ -7,6 +7,9 @@ import Data.Foldable hiding (toList)
 import Data.Monoid
 import Text.Printf
 
+--friends
+import FunctorCombinator
+
 data S n
 data Z
 
@@ -70,16 +73,6 @@ list2 :: Vec Two Integer
 list2 = 3 `Cons` 4 `Cons` Nil
 
 --
--- Pairs
---
-
-data Pair a = a :# a deriving (Functor, Foldable)
-
-instance Applicative Pair where
-  pure x = x :# x
-  (fa :# fb) <*> (a :# b) = fa a :# fb b
-
---
 -- Trees
 --
 
@@ -133,6 +126,20 @@ tree1 = Branch (Leaf 1) (Branch (Leaf 2) (Leaf 3))
 tree2 :: Tree ((), ((), ())) Integer
 tree2 = Branch (Leaf 4) (Branch (Leaf 5) (Leaf 6))
 
+instance Foldable ZipList where
+  -- ZipList m -> m
+  fold = fold . getZipList
+
+instance Traversable ZipList where
+  -- traverse :: (a -> f b) -> ZipList a -> f (Ziplist b)
+  traverse f (ZipList [])     = pure $ ZipList []
+  traverse f (ZipList (x:xs)) = (\x (ZipList xs) -> ZipList (x:xs)) <$> f x <*> traverse f (ZipList xs)
+
+instance Show a => Show (ZipList a) where
+  show (ZipList xs) = show xs
+--  f x :: f b 
+--  traverse f (ZipList xs) :: f (ZipList b)
+
 --
 -- Generalised dot products. Works on Vec, Pair, Tree (and much, much more!)
 --
@@ -140,4 +147,4 @@ dot :: (Num a, Foldable f, Applicative f) => f a -> f a -> a
 dot x y = (getSum . fold . fmap (Sum . getProduct)) (liftA2 mappend px py)
   where
     px = fmap Product x
-    py = fmap Product y
+    py = fmap Product y    
