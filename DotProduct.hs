@@ -1,7 +1,9 @@
 {-# LANGUAGE GADTs, EmptyDataDecls, FlexibleInstances, DeriveFunctor, DeriveFoldable, TypeFamilies #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, UndecidableInstances #-}
+{-# LANGUAGE CPP, TypeOperators #-}
 module DotProduct where
 
+import Prelude hiding (replicate)
 import Data.Traversable
 import Control.Applicative
 import Data.Foldable hiding (toList)
@@ -10,6 +12,7 @@ import Text.Printf
 
 --friends
 import FunctorCombinator
+
 
 data S n
 data Z
@@ -49,6 +52,7 @@ type One   = S Z
 type Two   = S One
 type Three = S Two
 
+{--
 instance Nat n => Foldable (Vec n) where
   -- foldMap :: Monoid m => (a -> m) -> Vec n a -> m
   foldMap f Nil         = mempty
@@ -69,12 +73,34 @@ instance Nat n => Applicative (Vec n) where
 instance Nat n => Traversable (Vec n) where
   traverse _ Nil           = pure Nil
   traverse f (x `Cons` xs) = Cons <$> f x <*> traverse f xs
+--}
 
-list1 :: Vec Two Integer
-list1 = 1 `Cons` 2 `Cons` Nil
+{--}
 
-list2 :: Vec Two Integer
-list2 = 3 `Cons` 4 `Cons` Nil
+#define TYPE Vec
+#include "instances-inc.hs"
+
+instance EncodeF (Vec Z) where
+  type Enc (Vec Z) = Unit 
+  encode Nil  = Unit
+  decode Unit = Nil
+  
+instance Nat n => EncodeF (Vec (S n)) where
+  type Enc (Vec (S n)) = (Id :*: Vec n) 
+  encode (Cons x xs) = Id x :*: xs
+  decode = aux
+    where
+      aux :: (Id :*: Vec n) a -> Vec (S n) a
+      aux (Id x :*: xs) = Cons x xs
+
+--}
+
+
+vec1 :: Vec Two Integer
+vec1 = 1 `Cons` 2 `Cons` Nil
+
+vec2 :: Vec Two Integer
+vec2 = 3 `Cons` 4 `Cons` Nil
 
 --
 -- Trees
@@ -85,29 +111,30 @@ list2 = 3 `Cons` 4 `Cons` Nil
 -- This is to ensure that we are taking the dot product of two things of the same structure.
 -- It also helps ensures that the Applicative instance for 'Tree's contains total functions.
 --
-class Shape sh where
+class TreeShape sh where
   replicateT :: a -> Tree sh a
 
-instance Shape () where
+instance TreeShape () where
   replicateT a = Leaf a
 
-instance (Shape sh1, Shape sh2) => Shape (sh1, sh2) where
+instance (TreeShape sh1, TreeShape sh2) => TreeShape (sh1, sh2) where
   replicateT a = Branch (replicateT a) (replicateT a)
 
 -- sh for shape
 data Tree sh a where
   Leaf   :: a -> Tree () a
-  Branch :: (Shape m, Shape n) => Tree m a -> Tree n a -> Tree (m,n) a
+  Branch :: (TreeShape m, TreeShape n) => Tree m a -> Tree n a -> Tree (m,n) a
 
 instance Show a => Show (Tree sh a) where
   show (Leaf a) = show a
   show (Branch s t) = printf "{%s,%s}" (show s) (show t)
 
-instance Shape sh => Functor (Tree sh) where
+{--
+instance TreeShape sh => Functor (Tree sh) where
   fmap f (Leaf a)     = Leaf (f a)
   fmap f (Branch s t) = Branch (fmap f s) (fmap f t)
 
-instance Shape sh => Foldable (Tree sh) where
+instance TreeShape sh => Foldable (Tree sh) where
   -- (a -> m) -> Tree n a -> m
   foldMap f (Leaf a)     = f a
   foldMap f (Branch s t) = foldMap f s `mappend` foldMap f t
@@ -115,14 +142,31 @@ instance Shape sh => Foldable (Tree sh) where
 --
 -- Trees have to have the same shape.
 --
-instance Shape sh => Applicative (Tree sh) where
+instance TreeShape sh => Applicative (Tree sh) where
   pure a                          = replicateT a
   Leaf fa <*> Leaf a              = Leaf (fa a)
   (Branch fs ft) <*> (Branch s t) = Branch (fs <*> s) (ft <*> t)
 
-instance Shape sh => Traversable (Tree sh) where
-  traverse f (Leaf a)     = Leaf <$> f a
+instance TreeShape sh => Traversable (Tree sh) where
+  traverse f (Leaf a)     = Leaf   <$> f a
   traverse f (Branch s t) = Branch <$> traverse f s <*> traverse f t
+--}
+
+
+{--}
+
+#define TYPE Tree
+#include "instances-inc.hs"
+instance EncodeF (Tree ()) where
+  type Enc (Tree ()) = Id 
+  encode (Leaf a) = Id a
+  decode (Id a)   = Leaf a
+  
+instance (TreeShape m, TreeShape n, EncodeF (Tree m), EncodeF (Tree n)) => EncodeF (Tree (m,n)) where
+  type Enc (Tree (m,n)) = Tree m :*: Tree n
+  encode (Branch s t) = s :*: t
+  decode (s :*: t)    = Branch s t
+--}
 
 tree1 :: Tree ((), ((), ())) Integer
 tree1 = Branch (Leaf 1) (Branch (Leaf 2) (Leaf 3))
@@ -141,8 +185,6 @@ instance Traversable ZipList where
 
 instance Show a => Show (ZipList a) where
   show (ZipList xs) = show xs
---  f x :: f b 
---  traverse f (ZipList xs) :: f (ZipList b)
 
 --
 -- Generalised dot products. Works on Vec, Pair, Tree (and much, much more!)
@@ -151,4 +193,4 @@ dot :: (Num a, Foldable f, Applicative f) => f a -> f a -> a
 dot x y = (getSum . fold . fmap (Sum . getProduct)) (liftA2 mappend px py)
   where
     px = fmap Product x
-    py = fmap Product y    
+    py = fmap Product y
