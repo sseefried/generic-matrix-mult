@@ -1,6 +1,6 @@
-{-# LANGUAGE GADTs, EmptyDataDecls, FlexibleInstances, DeriveFunctor, DeriveFoldable, TypeFamilies #-}
+{-# LANGUAGE GADTs, EmptyDataDecls, FlexibleInstances, DeriveFunctor, DeriveFoldable #-}
 {-# LANGUAGE ScopedTypeVariables, FlexibleContexts, UndecidableInstances #-}
-{-# LANGUAGE CPP, TypeOperators #-}
+{-# LANGUAGE CPP, TypeOperators, TypeFamilies #-}
 module DotProduct where
 
 import Prelude hiding (replicate)
@@ -12,7 +12,6 @@ import Text.Printf
 
 --friends
 import FunctorCombinator
-
 
 data S n
 data Z
@@ -81,12 +80,12 @@ instance Nat n => Traversable (Vec n) where
 #include "instances-inc.hs"
 
 instance EncodeF (Vec Z) where
-  type Enc (Vec Z) = Unit 
+  type Enc (Vec Z) = Unit
   encode Nil  = Unit
   decode Unit = Nil
-  
+
 instance Nat n => EncodeF (Vec (S n)) where
-  type Enc (Vec (S n)) = (Id :*: Vec n) 
+  type Enc (Vec (S n)) = (Id :*: Vec n)
   encode (Cons x xs) = Id x :*: xs
   decode = aux
     where
@@ -158,14 +157,16 @@ instance TreeShape sh => Traversable (Tree sh) where
 #define TYPE Tree
 #include "instances-inc.hs"
 instance EncodeF (Tree ()) where
-  type Enc (Tree ()) = Id 
+  type Enc (Tree ()) = Id
   encode (Leaf a) = Id a
   decode (Id a)   = Leaf a
-  
-instance (TreeShape m, TreeShape n, EncodeF (Tree m), EncodeF (Tree n)) => EncodeF (Tree (m,n)) where
+
+instance (TreeShape m, TreeShape n, EncodeF (Tree m), EncodeF (Tree n))
+         => EncodeF (Tree (m,n)) where
   type Enc (Tree (m,n)) = Tree m :*: Tree n
   encode (Branch s t) = s :*: t
   decode (s :*: t)    = Branch s t
+
 --}
 
 tree1 :: Tree ((), ((), ())) Integer
@@ -181,10 +182,42 @@ instance Foldable ZipList where
 instance Traversable ZipList where
   -- traverse :: (a -> f b) -> ZipList a -> f (Ziplist b)
   traverse f (ZipList [])     = pure $ ZipList []
-  traverse f (ZipList (x:xs)) = (\x (ZipList xs) -> ZipList (x:xs)) <$> f x <*> traverse f (ZipList xs)
-
+  traverse f (ZipList (x:xs)) = cons <$> f x <*> traverse f (ZipList xs)
+    where
+      cons x (ZipList xs) = ZipList (x:xs)
 instance Show a => Show (ZipList a) where
   show (ZipList xs) = show xs
+
+--
+-- Bottom-up trees
+--
+
+#define TYPE TB
+#include "instances-inc.hs"
+
+data TB depth a where
+   LB :: a -> TB Z a
+   BB :: TB n (Pair a) -> TB (S n) a
+
+instance Show a => Show (TB depth a) where
+  show (LB a)   = printf "LB %s" (show a)
+  show (BB t) = printf "BB (%s)" (show t)
+
+instance EncodeF (TB Z) where
+  type Enc (TB Z) = Id
+  encode (LB a) = Id a
+  decode (Id a) = LB a
+
+instance EncodeF (TB n) => EncodeF (TB (S n)) where
+  type Enc (TB (S n)) = TB n :.: Pair
+  encode (BB t) = O t
+  decode (O t) = BB t
+
+treebu1 :: TB Two Int
+treebu1 = BB (BB (LB ((1 :# 2) :# (3 :# 4))))
+
+treebu2 :: TB Two Int
+treebu2 = BB (BB (LB ((5 :# 6) :# (7 :# 8))))
 
 --
 -- Generalised dot products. Works on Vec, Pair, Tree (and much, much more!)

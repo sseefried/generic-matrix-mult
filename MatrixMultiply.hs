@@ -1,15 +1,18 @@
-{-# LANGUAGE GADTs, EmptyDataDecls, FlexibleInstances, DeriveFunctor, DeriveFoldable, TypeFamilies #-}
+{-# LANGUAGE GADTs, EmptyDataDecls, FlexibleInstances, DeriveFunctor, DeriveFoldable #-}
+{-# LANGUAGE TypeFamilies #-}
 module MatrixMultiply where
 
-import DotProduct
-
-
+-- Standard libraries
 import Control.Applicative
 import Data.Foldable hiding (toList)
 import qualified Data.Foldable as F
 import Data.Monoid
 import Data.Traversable
 import Text.Printf
+
+-- Friends
+import DotProduct
+import FunctorCombinator
 
 --
 -- What is a matrix, Neo?
@@ -20,7 +23,6 @@ import Text.Printf
 -- When we multiply two matrices together we multiply one type with its mirrored type.
 --
 -- e.g. If the first matrix is a vector of trees, then the second must be a tree of vectors.
---
 --
 -- The result will be a vector of vectors.
 --
@@ -56,7 +58,7 @@ vvmat32 :: Vec Three (Vec Two Integer)
 vvmat32 = (1 `Cons` 2 `Cons` Nil) `Cons`
          (3 `Cons` 4 `Cons` Nil) `Cons`
          (5 `Cons` 6 `Cons` Nil) `Cons` Nil
-         
+
 vvmat33 :: Vec Three (Vec Three Integer)
 vvmat33 = (1 `Cons` 2 `Cons` 3 `Cons` Nil) `Cons`
           (4 `Cons` 5 `Cons` 6 `Cons` Nil) `Cons`
@@ -71,12 +73,12 @@ vvmat35 = (1 `Cons` 2 `Cons` 3 `Cons` 4 `Cons` 5 `Cons` Nil) `Cons`
 llmat23 :: ZipList (ZipList Integer)
 llmat23 = ZipList [ZipList [1,2,3],
                    ZipList [4,5,6]]
-           
+
 llmat33 :: ZipList (ZipList Integer)
 llmat33 = ZipList [ ZipList [1,2,3]
                   , ZipList [4,5,6]
                   , ZipList [7,8,9]]
-                  
+
 llmat35 :: ZipList (ZipList Integer)
 llmat35 = ZipList [ ZipList [1,2,3,4,5]
                   , ZipList [6,7,8,9,10]
@@ -89,3 +91,11 @@ vtmat23 = (Branch (Leaf 1) (Branch (Leaf 2) (Leaf 3))) `Cons`
 tvmat32 :: Tree ((), ((), ())) (Vec Two Integer)
 tvmat32 = Branch (Leaf (1 `Cons` 2 `Cons` Nil)) (Branch (Leaf (3 `Cons` 4 `Cons` Nil))
                                                       (Leaf (5 `Cons` 6 `Cons` Nil)))
+
+vbmat24 :: Vec Two (TB Two Integer)
+vbmat24 = (BB $ BB $ LB ((1:#2):#(3:#4))) `Cons`
+          (BB $ BB $ LB ((5:#6):#(7:#8))) `Cons` Nil
+
+vbmat42 :: TB Two (Vec Two Integer)
+vbmat42 = BB $ BB $ LB (((9 `Cons` 10 `Cons` Nil) :# (11 `Cons` 12 `Cons` Nil)) :#
+                        ((13 `Cons` 14 `Cons` Nil) :# (15 `Cons` 16 `Cons` Nil)))
