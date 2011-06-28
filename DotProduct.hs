@@ -3,7 +3,7 @@
 {-# LANGUAGE CPP, TypeOperators, TypeFamilies #-}
 module DotProduct where
 
-import Prelude hiding (replicate)
+import Prelude hiding (replicate, foldl)
 import Data.Traversable
 import Control.Applicative
 import Data.Foldable hiding (toList)
@@ -223,7 +223,12 @@ treebu2 = BB (BB (LB ((5 :# 6) :# (7 :# 8))))
 -- Generalised dot products. Works on Vec, Pair, Tree (and much, much more!)
 --
 dot :: (Num a, Foldable f, Applicative f) => f a -> f a -> a
-dot x y = (getSum . fold . fmap (Sum . getProduct)) (liftA2 mappend px py)
+dot = dotGen (Product, getProduct) (Sum, getSum)
+
+dotGen :: (Foldable f, Applicative f, Monoid p, Monoid s)
+       => (a -> p, p -> a) -> (a -> s, s-> a) -> f a -> f a -> a
+dotGen (pinject, pproject) (sinject, sproject) x y =
+   sproject . fold . fmap (sinject . pproject) $ liftA2 mappend px py
   where
-    px = fmap Product x
-    py = fmap Product y
+    px = fmap pinject x
+    py = fmap pinject y
