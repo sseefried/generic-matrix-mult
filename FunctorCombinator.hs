@@ -63,14 +63,20 @@ instance (Applicative f, Applicative g) => Applicative (f :*: g) where
 --
 
 -- Type composition
-newtype (g :.: f) a = O { unO :: g (f a) } deriving (Show, Functor, Traversable)
+newtype (g :.: f) a = O { unO :: g (f a) } deriving (Show, Traversable)
+
+instance (Functor f, Functor g) => Functor (g :.: f) where
+  fmap h (O gfa) = O . fmap (fmap h) $ gfa
 
 instance (Foldable f, Functor g, Foldable g) => Foldable (g :.: f) where
   fold (O gfm) = fold . (fmap fold) $ gfm
 
 instance (Applicative f, Applicative g) => Applicative (g :.: f) where
-  pure a               = O $ pure . pure $ a
+  pure                 = O . pure . pure
   (O gfab) <*> (O gfa) = O $ (<*>) <$> gfab <*> gfa
+
+
+
 
 class Replicate f where
    replicate :: a -> f a
