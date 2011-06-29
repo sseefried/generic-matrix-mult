@@ -75,21 +75,6 @@ instance (Applicative f, Applicative g) => Applicative (g :.: f) where
   pure                 = O . pure . pure
   (O gfab) <*> (O gfa) = O $ (<*>) <$> gfab <*> gfa
 
-
-
-
-class Replicate f where
-   replicate :: a -> f a
-
-instance Replicate Unit where
-   replicate _ = Unit
-
-instance Replicate Id where
-  replicate a = Id a
-
-instance (Replicate f, Replicate g) => Replicate (f :*: g) where
-  replicate a = replicate a :*: replicate a
-
 class EncodeF f where
   type Enc f :: * -> *
   encode :: f a -> Enc f a

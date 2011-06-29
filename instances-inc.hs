@@ -10,6 +10,3 @@ instance (Applicative (Enc (TYPE sh)), EncodeF (TYPE sh)) => Applicative (TYPE s
 
 instance (Traversable (Enc (TYPE sh)), EncodeF (TYPE sh)) => Traversable (TYPE sh) where
   traverse f = fmap decode . traverse f . encode
-
-instance (Replicate (Enc (TYPE sh)), EncodeF (TYPE sh)) => Replicate (TYPE sh) where
-  replicate = decode . replicate

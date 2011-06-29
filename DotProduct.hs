@@ -24,18 +24,15 @@ data Z
 --
 data Vec n a where
   Nil  :: Vec Z a
-  Cons :: Nat n => a -> Vec n a -> Vec (S n) a
+  Cons :: a -> Vec n a -> Vec (S n) a
 
 class Nat n where
-  replicateL :: a -> Vec n a
   natToInt :: n -> Int
 
 instance Nat Z where
-  replicateL _ = Nil
   natToInt _   = 0
 
 instance Nat n => Nat (S n) where
-  replicateL a = a `Cons` replicateL a
   natToInt (_::S n) = 1 + natToInt (undefined :: n)
 
 toList :: Vec n a  -> [a]
@@ -52,7 +49,7 @@ type Two   = S One
 type Three = S Two
 
 {--
-instance Nat n => Foldable (Vec n) where
+instance Foldable (Vec n) where
   -- foldMap :: Monoid m => (a -> m) -> Vec n a -> m
   foldMap f Nil         = mempty
   foldMap f (Cons x xs) = f x `mappend` foldMap f xs
@@ -64,12 +61,16 @@ instance Functor (Vec n) where
 --
 -- Vecs have to have the same length
 --
-instance Nat n => Applicative (Vec n) where
-  pure x   = replicateL x
+
+instance Applicative (Vec Z) where
+  pure _ = Nil
   Nil <*> Nil                       = Nil
+
+instance Applicative (Vec n) => Applicative (Vec (S n)) where
+  pure a = a `Cons` pure a
   (fa `Cons` fas) <*> (a `Cons` as) = fa a `Cons` (fas <*> as)
 
-instance Nat n => Traversable (Vec n) where
+instance Traversable (Vec n) where
   traverse _ Nil           = pure Nil
   traverse f (x `Cons` xs) = Cons <$> f x <*> traverse f xs
 --}
@@ -110,30 +111,23 @@ vec2 = 3 `Cons` 4 `Cons` Nil
 -- This is to ensure that we are taking the dot product of two things of the same structure.
 -- It also helps ensures that the Applicative instance for 'Tree's contains total functions.
 --
-class TreeShape sh where
-  replicateT :: a -> Tree sh a
-
-instance TreeShape () where
-  replicateT a = Leaf a
-
-instance (TreeShape sh1, TreeShape sh2) => TreeShape (sh1, sh2) where
-  replicateT a = Branch (replicateT a) (replicateT a)
 
 -- sh for shape
 data Tree sh a where
   Leaf   :: a -> Tree () a
-  Branch :: (TreeShape m, TreeShape n) => Tree m a -> Tree n a -> Tree (m,n) a
+  Branch :: Tree m a -> Tree n a -> Tree (m,n) a
 
 instance Show a => Show (Tree sh a) where
   show (Leaf a) = show a
   show (Branch s t) = printf "{%s,%s}" (show s) (show t)
 
 {--
-instance TreeShape sh => Functor (Tree sh) where
+
+instance Functor (Tree sh) where
   fmap f (Leaf a)     = Leaf (f a)
   fmap f (Branch s t) = Branch (fmap f s) (fmap f t)
 
-instance TreeShape sh => Foldable (Tree sh) where
+instance Foldable (Tree sh) where
   -- (a -> m) -> Tree n a -> m
   foldMap f (Leaf a)     = f a
   foldMap f (Branch s t) = foldMap f s `mappend` foldMap f t
@@ -141,12 +135,15 @@ instance TreeShape sh => Foldable (Tree sh) where
 --
 -- Trees have to have the same shape.
 --
-instance TreeShape sh => Applicative (Tree sh) where
-  pure a                          = replicateT a
+instance Applicative (Tree ()) where
+  pure a                          = Leaf a
   Leaf fa <*> Leaf a              = Leaf (fa a)
+
+instance (Applicative (Tree m), Applicative (Tree n)) => Applicative (Tree (m,n)) where
+  pure a                          = Branch (pure a) (pure a)
   (Branch fs ft) <*> (Branch s t) = Branch (fs <*> s) (ft <*> t)
 
-instance TreeShape sh => Traversable (Tree sh) where
+instance Traversable (Tree sh) where
   traverse f (Leaf a)     = Leaf   <$> f a
   traverse f (Branch s t) = Branch <$> traverse f s <*> traverse f t
 --}
@@ -161,7 +158,7 @@ instance EncodeF (Tree ()) where
   encode (Leaf a) = Id a
   decode (Id a)   = Leaf a
 
-instance (TreeShape m, TreeShape n, EncodeF (Tree m), EncodeF (Tree n))
+instance (EncodeF (Tree m), EncodeF (Tree n))
          => EncodeF (Tree (m,n)) where
   type Enc (Tree (m,n)) = Tree m :*: Tree n
   encode (Branch s t) = s :*: t
@@ -232,3 +229,17 @@ dotGen (pinject, pproject) (sinject, sproject) x y =
   where
     px = fmap pinject x
     py = fmap pinject y
+
+
+
+dotMult :: (Num a, Applicative f) => f a -> f a -> f a
+dotMult x y = fmap getProduct $ liftA2 mappend (fmap Product x) (fmap Product y)
+
+dotSum :: (Num a, Foldable f, Functor f) => f a ->  a
+dotSum x  = getSum . fold . fmap Sum $ x
+
+dot' x y = dotSum $ dotMult x y
+
+-- foo :: (Applicative f, Applicative g) => f (g (a -> b)) -> f (g a) -> f (g b)
+-- foo a b = foo (foo app a) b  -- liftA2 (<*>) a b
+--   where (
