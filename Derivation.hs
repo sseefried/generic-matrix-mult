@@ -166,77 +166,43 @@ instance Applicative (TB n) => Applicative (TB (S n)) where
       where app a b = liftA2 (<*>) a b
 
 
--- Let's see what dot becomes
-
--- Leaf case :: TB Z a
-
-   dot (Leaf s) (Leaf t)
-==   {- dot definition -}
-   getSum . fold . fmap (Sum . getProduct) $
-     liftA2 mappend (fmap Product (Leaf s)) (fmap Product (Leaf t))
-==   {- -}
-   getSum . fold . fmap (Sum . getProduct) $
-     liftA2 mappend (decode . fmap Product . encode $ Leaf s) (decode . fmap Product . encode $ Leaf t)
-==   {- fmap definition  and encode definition -}
-   getSum . fold . fmap (Sum . getProduct) $
-     liftA2 mappend (decode $ Id (Product s)) (decode $ Id (Product t))
-==   {- decode definition -}
-   getSum . fold . fmap (Sum . getProduct) $
-     liftA2 mappend (Leaf (Product s)) (Leaf (Product t))
-==   {- liftA2 definition -}
-   getSum . fold . fmap (Sum . getProduct) $ Leaf (Product s `mappend` Product t)
-==   {- mappend on Product monoid -}     
-   getSum . fold . fmap (Sum . getProduct) $ Leaf (Product (s * t))
-==   {- fmap definition -}   
-   getSum . fold $ Leaf (Sum (s * t))
-==   {- simplify -}    
-   s * t
-   
--- Branch case :: TB (S n) a
-   dot (BB s) (BB t)
-==   {- dot defintion -}
-   getSum . fold . fmap (Sum . getProduct) $
-     liftA2 mappend (fmap Product (BB s)) (fmap Product (BB t))
-==   {- fmap on TB (S n) (derivation) -}
-   getSum . fold . fmap (Sum . getProduct) $
-     liftA2 mappend (BB . fmap (fmap Product) $ s) (BB . fmap (fmap Product) $ t)
+-- == dotMult == 
+-- Branch case :: TB Z a
+   dotMult (BB s) (BB t)
+==   {- dotMult -}
+   fmap getProduct $ liftA2 mappend (fmap Product (BB s)) (fmap Product (BB t))
+==   {- fmap on TB (S n) (derivation) -}  
+   fmap getProduct $ liftA2 mappend (BB . fmap (fmap Product) $ s) (BB . fmap (fmap Product) $ t)
 ==   {- liftA2 on TB (S n) (derivation) -}
-   getSum . fold . fmap (Sum . getProduct) $
-     BB (pure (mappend :# mappend)) `app` fmap (fmap Product) s `app` fmap (fmap Product) t
-        where app a b = liftA2 (<*>) a b
-==   {-  fmap on TB (S n) (derivation) -}
-   getSum . fold $  BB $ fmap (fmap (Sum . getProduct)) $ 
-     (pure (mappend :# mappend)) `app` fmap (fmap Product) s `app` fmap (fmap Product) t
-        where app a b = liftA2 (<*>) a b
-==   {-  fold on TB (S b) (derivation) -}
-   getSum $ fold . (fmap fold) $ fmap (fmap (Sum . getProduct)) $ 
-     (pure (mappend :# mappend)) `app` fmap (fmap Product) s `app` fmap (fmap Product) t
-        where app a b = liftA2 (<*>) a b
-==   {-  rearrange-}
-   getSum $ fold . (fmap fold) . fmap (fmap (Sum . getProduct)) $ 
-     (pure (mappend :# mappend)) `app` fmap (fmap Product) s `app` fmap (fmap Product) t
-        where app a b = liftA2 (<*>) a b
-==   {- fmap f (fmap g) == fmap (f . g) -}
-   getSum $ fold . (fmap (fold . (fmap (Sum . getProduct)))) $ 
-     (pure (mappend :# mappend)) `app` fmap (fmap Product) s `app` fmap (fmap Product) t
-        where app a b = liftA2 (<*>) a b
+   fmap getProduct $ liftA2 (<*>) (liftA2 (<*>) (pure $ mappend :# mappend)
+                                                (BB . fmap (fmap Product) $ s))
+                                  (BB . fmap (fmap Product) $ t)
 ==   {- rearrange -}
-   getSum $ fold . (fmap (fold . (fmap (Sum . getProduct)))) $ 
-     (liftA2 (<*>) (pure (mappend :# mappend)) (fmap (fmap Product) s)) `app` (fmap (fmap Product) t)
-        where app a b = liftA2 (<*>) a b
+   fmap getProduct $ liftA2 (<*>) (liftA2 (<*>) (BB result) (BB . fmap (fmap Product) $ s))
+                                  (BB . fmap (fmap Product) $ t)
+     where result = pure $ mappend :# mappend
 ==   {- rearrange -}
-   getSum $ fold . (fmap (fold . (fmap (Sum . getProduct)))) $ 
-     liftA2 (<*>) (liftA2 (<*>) (pure (mappend :# mappend)) 
-                                (fmap (fmap Product) s))
-                  (fmap (fmap Product) t)
-==   {- rearrange -}
-   foo (fmap (fold . (fmap (Sum . getProduct))))
-       (<*>)
-       (\s -> liftA2 (<*>) (pure (mappend :# mappend)) (fmap (fmap Product) s))
-       (fmap (fmap Product))
-    where 
-      foo f g h j = getSum . fold . f $ liftA2 g (h s) (j t)
+   fmap getProduct $ liftA2 (<*>) (liftA2 (<*>) (BB result) (BB . fmap (fmap Product) $ s))
+                                  (BB . fmap (fmap Product) $ t)
 
-dotFoo s t = foo (fmap (Sum . getProduct)) mappend (fmap Product) (fmap Product)
-  where 
-    foo f g h j = getSum . fold . f $ liftA2 g (h s) (j t)
+foo a b = liftA2 (<*>) a b
+
+   foo (BB s) (BB t)
+==  
+   liftA2 (<*>) (BB s) (BB t)
+==   {- rearrange -}  
+   BB app <*> BB s <*> BB t
+      where (BB app) = pure (<*>)
+== 
+   (BB $ liftA2 (<*>) app s) <*> BB t
+      where (BB app) = pure (<*>)
+== 
+   BB $ liftA2 (<*>) (liftA2 (<*>) app s) t
+      where (BB app) = pure (<*>)
+== 
+   BB $ foo (liftA2 <*> app s) t
+      where (BB app) = pure (<*>)
+== 
+   BB $ foo (foo app s) t
+      where (BB app) = pure (<*>)
+
