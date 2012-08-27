@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs, EmptyDataDecls, FlexibleInstances, DeriveFunctor, DeriveFoldable #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts, TypeFamilies, TypeOperators, UndecidableInstances #-}
 module MatrixMultiply where
 
 -- Standard libraries
@@ -45,7 +45,47 @@ transpose = sequenceA
 
 mmult :: (Num a, Applicative f1, Applicative f2, Applicative f3, Traversable f1, Traversable f2)
        => f1 (f2 a) -> f2 (f3 a) -> f1 (f3 a)
-mmult m1 m2 = fmap (flip (fmap . dot) (transpose m2)) m1 
+mmult m1 m2 = fmap (flip (fmap . dot) (transpose m2)) m1
+
+
+class Applicative f => Identity f where
+  identity :: Num a => f (f a)
+
+{--
+instance Identity (Vec Z) where
+  identity = Nil
+
+instance Identity (Vec n) => Identity (Vec (S n)) where
+  identity = (1 `Cons` pure 0) `Cons` fmap (0 `Cons`) identity
+-}
+instance Identity (Tree ()) where
+  identity = Leaf (Leaf 1)
+
+instance (Identity (Tree m), Identity (Tree n)) => Identity (Tree (m,n)) where
+  identity = Branch (fmap (`Branch` pure 0) identity) (fmap (pure 0 `Branch`) identity)
+--}
+----------------------------
+
+{--}
+instance (Identity (Enc (Vec n)), EncodeF (Vec n)) => Identity (Vec n) where
+  identity = decode . fmap decode $ identity
+
+instance (Identity f, Identity g) => Identity (f :*: g) where
+  identity = fmap (:*: pure 0) identity :*: fmap (pure 0 :*:) identity
+
+instance Identity Unit where
+  identity = Unit
+
+instance Identity Id where
+  identity = Id (Id 1)
+
+id1 :: Vec Three (Vec Three Int)
+id1 = identity
+
+id2 :: Tree ((),()) (Tree ((),()) Int)
+id2 = identity
+
+--}
 
 --
 --  Tests
@@ -91,6 +131,17 @@ vtmat23 = (Branch (Leaf 1) (Branch (Leaf 2) (Leaf 3))) `Cons`
 tvmat32 :: Tree ((), ((), ())) (Vec Two Integer)
 tvmat32 = Branch (Leaf (1 `Cons` 2 `Cons` Nil)) (Branch (Leaf (3 `Cons` 4 `Cons` Nil))
                                                       (Leaf (5 `Cons` 6 `Cons` Nil)))
+
+tvmat33 :: Tree ((), ((), ())) (Vec Three Integer)
+tvmat33 = Branch (Leaf (1 `Cons` 2 `Cons` 3 `Cons` Nil))
+         (Branch (Leaf (4 `Cons` 5 `Cons` 6 `Cons` Nil))
+                 (Leaf (7 `Cons` 8 `Cons` 9 `Cons` Nil)))
+
+vtmat33 :: Vec Three (Tree ((), ((), ())) Integer)
+vtmat33 = (Branch (Leaf 10) (Branch (Leaf 11) (Leaf 12))) `Cons`
+          (Branch (Leaf 13) (Branch (Leaf 14) (Leaf 15))) `Cons`
+          (Branch (Leaf 16) (Branch (Leaf 17) (Leaf 18))) `Cons` Nil
+
 
 vbmat24 :: Vec Two (TB Two Integer)
 vbmat24 = (BB $ BB $ LB ((1:#2):#(3:#4))) `Cons`

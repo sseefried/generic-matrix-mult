@@ -3,10 +3,10 @@
 {-# LANGUAGE CPP, TypeOperators, TypeFamilies #-}
 module DotProduct where
 
-import Prelude hiding (replicate, foldl)
+import Prelude hiding (replicate, foldl, sum)
 import Data.Traversable
 import Control.Applicative
-import Data.Foldable hiding (toList)
+import Data.Foldable hiding (toList, sum)
 import Data.Monoid
 import Text.Printf
 
@@ -121,7 +121,7 @@ instance Show a => Show (Tree sh a) where
   show (Leaf a) = show a
   show (Branch s t) = printf "{%s,%s}" (show s) (show t)
 
-{--
+{--}
 
 instance Functor (Tree sh) where
   fmap f (Leaf a)     = Leaf (f a)
@@ -149,7 +149,7 @@ instance Traversable (Tree sh) where
 --}
 
 
-{--}
+{--
 
 #define TYPE Tree
 #include "instances-inc.hs"
@@ -188,7 +188,6 @@ instance Show a => Show (ZipList a) where
 --
 -- Bottom-up trees
 --
-
 #define TYPE TB
 #include "instances-inc.hs"
 
@@ -222,6 +221,11 @@ treebu2 = BB (BB (LB ((5 :# 6) :# (7 :# 8))))
 dot :: (Num a, Foldable f, Applicative f) => f a -> f a -> a
 dot = dotGen (Product, getProduct) (Sum, getSum)
 
+dot' :: (Num a, Foldable f, Applicative f) => f a -> f a -> a
+dot' x y = foldSum $ liftA2 (*) x y
+  where foldSum = getSum . fold . fmap Sum
+
+
 dotGen :: (Foldable f, Applicative f, Monoid p, Monoid s)
        => (a -> p, p -> a) -> (a -> s, s-> a) -> f a -> f a -> a
 dotGen (pinject, pproject) (sinject, sproject) x y =
@@ -230,16 +234,64 @@ dotGen (pinject, pproject) (sinject, sproject) x y =
     px = fmap pinject x
     py = fmap pinject y
 
+-- dotMult :: (Num a, Applicative f) => f a -> f a -> f a
+-- dotMult x y = fmap getProduct $ liftA2 mappend (fmap Product x) (fmap Product y)
+--
+-- dotSum :: (Num a, Foldable f, Functor f) => f a ->  a
+-- dotSum x  = getSum . fold . fmap Sum $ x
+--
+-- dot' x y = dotSum $ dotMult x y
+
+c2 = (.)(.)(.)
+
+-- dotXX f m x y = getSum . fold $ liftA2 f (fmap m x) (fmap m y)
 
 
-dotMult :: (Num a, Applicative f) => f a -> f a -> f a
-dotMult x y = fmap getProduct $ liftA2 mappend (fmap Product x) (fmap Product y)
 
-dotSum :: (Num a, Foldable f, Functor f) => f a ->  a
-dotSum x  = getSum . fold . fmap Sum $ x
+class DotX f where
+  dotX :: (Monoid m) => (b -> b -> m) -> (a -> b) -> f a -> f a -> m
 
-dot' x y = dotSum $ dotMult x y
+instance DotX (TB Z) where
+  dotX f m (LB a) (LB b) = f (m a) (m b)
 
--- foo :: (Applicative f, Applicative g) => f (g (a -> b)) -> f (g a) -> f (g b)
--- foo a b = foo (foo app a) b  -- liftA2 (<*>) a b
---   where (
+instance DotX (TB n) => DotX (TB (S n)) where
+  dotX f m (BB s) (BB t) = dotX f' m' s t
+   where
+    m' (a :# b)            = m a :# m b
+    f' (a :# b) (a' :# b') = f a a' `mappend` f b b'
+
+dot''' :: (DotX (TB n), Num a) => TB n a -> TB n a -> a
+dot''' = getSum `c2` dotX ((Sum . getProduct) `c2` mappend) Product
+
+dotTBMult :: (a -> a -> a) -> TB n a -> TB n a -> TB n a
+dotTBMult f (BB s) (BB t) = BB $ dotTBMult (pairLift f) s t
+  where
+    pairLift f (a :# b) (a' :# b') = f a a' :# f b b'
+
+dotTBMult2 :: (EncodeF (TB n), Applicative (Enc (TB n))) => (a -> a -> a)
+          -> TB (S n) a -> TB (S n) a -> TB (S n) a
+dotTBMult2 f (BB s) (BB t) = BB $ liftA2 (<*>) (liftA2 (<*>) (pure $ f :# f) s) t
+
+
+dotTBGen :: (a -> a -> a) -> (a -> a -> a) -> TB n a -> TB n a -> a
+dotTBGen f g (LB a) (LB b) = f a b
+dotTBGen f g (BB s) (BB t) = aux f g s t
+  where
+    aux :: (a -> a -> a) -> (a -> a -> a) -> TB n (Pair a) -> TB n (Pair a) -> a
+    aux f g s t = let (a :# b) = dotTBGen (liftA2 f) (liftA2 g) s t in  g a b
+
+dotTB :: Num a => TB n a -> TB n a -> a
+dotTB x y = dotTBGen (*) (+) x y
+
+class Lifty f where
+  lifty :: (a -> b -> c) -> f a -> f b -> f c
+
+instance (Lifty (TB n), EncodeF (TB n), Applicative (Enc (TB n))) => Lifty (TB (S n)) where
+--  lifty :: (a -> b -> c) -> TB (S n) a -> TB (S n) b -> TB (S n) c
+  lifty f (BB s) (BB t) = BB $ (pure $ f :# f) `app` s `app` t
+    where app a b = lifty (<*>) a b
+
+
+zipWithV :: (a -> b -> c) -> Vec n a -> Vec n b -> Vec n c
+zipWithV f Nil Nil = Nil
+zipWithV f (Cons x xs) (Cons y ys) = f x y `Cons` zipWithV f xs ys

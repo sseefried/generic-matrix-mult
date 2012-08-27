@@ -33,7 +33,7 @@
 ==   {- decode definition on O -}
    BB . fmap<TB n> (fmap<Pair> f) $ t
 
-{-
+{- 
 
 instance Functor (TB Z) where
   fmap f (LB a) = LB $ f a
@@ -125,13 +125,11 @@ instance Applicative (TB n) => Applicative (TB (S n)) where
 ==   {- <*> on TB (S n) -}
    decode (encode (BB ft) <*> encode (BB t))
 ==   {- encode on TB (S n) -}
-   decode (O ft <*><TB n:.:Pair> O t)
+   decode (O ft <*> O t)
 ==   {- <*> on TB n :.: Pair -}
-   decode (O $ (<*><Pair>) <$><TB n> ft <*><TB n> t)
+   decode (O $ (<*>) <$> ft <*> t)
 ==   {- decode . O == BB -}
-   BB $ (<*><Pair>) <$><TB n> ft <*><TB n> t
-==   {- definition of liftA2 -}
-   BB $ liftA2 (<*>) ft t
+   BB $ (<*>) <$> ft <*> t
 
 {-
 
@@ -147,9 +145,7 @@ instance Applicative (TB n) => Applicative (TB (S n)) where
 
 -- Remember: liftA2 f a b = pure f <*> a <*> b
 -- Let's see what liftA2 becomes
---
 -- Leaf case
---
    liftA2 f (LB a) (LB b)
 ==   {- liftA2 def -}
    pure f <*> LB a <*> LB b
@@ -175,9 +171,7 @@ instance Applicative (TB n) => Applicative (TB (S n)) where
    decode (Id (f a b))
 ==  LB (f a b)
 
---
 -- Branch case :: TB (S n) a
---
    pure f <*> BB s <*> BB t
 ==   {- pure on TB (S n) (derivation) -}
    BB (pure $ pure<Pair> f)) <*> BB s <*> BB t
@@ -193,118 +187,71 @@ instance Applicative (TB n) => Applicative (TB (S n)) where
    BB $ pure ((.) (<*>)) <*> (pure $ (<*>) (pure<Pair> f)) <*> s <*> t
 ==   {- homomorphism -}
    BB $ pure ((.) (<*>) ((<*>) (pure<Pair> f))) <*> s <*> t
-==   {- rearrange -}
-   BB $ pure ((<*>) . (pure<Pair> f <*>)) <*> s <*> t
-==   {- (<*>) . (pure f <*>) == liftA2 f  -}
+
+   BB $ pure ((.) (<*>) (\y -> (<*>) (pure<Pair> f) y)) <*> s <*> t
+
+   BB $ pure (\x -> (<*>) ((\y -> (<*>) (pure<Pair> f) y) x)) <*> s <*> t
+
+   BB $ pure (\x -> (<*>) ((<*>) (pure<Pair> f) x)) <*> s <*> t
+
+   BB $ pure (\x -> (\z -> (<*>) ((<*>) (pure<Pair> f) x) z)) <*> s <*> t
+
+   BB $ pure (\x -> (\z -> (<*>) ((pure<Pair> f) <*> x) z)) <*> s <*> t
+
+   BB $ pure (\x -> (\z -> ((pure<Pair> f) <*> x) <*> z)) <*> s <*> t
+
+   BB $ pure (\x -> (\z -> pure<Pair> f <*> x <*> z)) <*> s <*> t
+
+   BB $ pure (\x -> (\z -> liftA2<Pair> f x z)) <*> s <*> t   
+
    BB $ pure (liftA2<Pair> f) <*> s <*> t   
-==   {- rearrange -}
+
    BB $ liftA2 (liftA2<Pair> f) s t   
 
 {-
 
-liftA2 f (LB a) (LB b) = LB (f a b)
-liftA2 f (BB s) (BB t) = BB $ liftA2 (liftA2 f) s t
+
+
 
 -}
 
 
---  c2 = (.).(.)
---  fmap f (liftA2 g x y) == liftA2 (f `c2` g) x y
--- Prove
+-- == dotMult == 
+-- Branch case :: TB Z a
+   dotMult (BB s) (BB t)
+==   {- dotMult -}
+   fmap getProduct $ liftA2 mappend (fmap Product (BB s)) (fmap Product (BB t))
+==   {- fmap on TB (S n) (derivation) -}  
+   fmap getProduct $ liftA2 mappend (BB . fmap (fmap Product) $ s) (BB . fmap (fmap Product) $ t)
+==   {- liftA2 on TB (S n) (derivation) -}
+   fmap getProduct $ liftA2 (<*>) (liftA2 (<*>) (pure $ mappend :# mappend)
+                                                (BB . fmap (fmap Product) $ s))
+                                  (BB . fmap (fmap Product) $ t)
+==   {- rearrange -}
+   fmap getProduct $ liftA2 (<*>) (liftA2 (<*>) (BB result) (BB . fmap (fmap Product) $ s))
+                                  (BB . fmap (fmap Product) $ t)
+     where result = pure $ mappend :# mappend
+==   {- rearrange -}
+   fmap getProduct $ liftA2 (<*>) (liftA2 (<*>) (BB result) (BB . fmap (fmap Product) $ s))
+                                  (BB . fmap (fmap Product) $ t)
 
-   fmap f (liftA2 g x y)
-==   {- liftA2 def -}
-   fmap f (pure g <*> x <*> y)
-==   {- fmap f x == pure f <*> x -}
-   pure f <*> ((pure g <*> x) <*> y)
-==   {- ((pure (.) <*> u) <*> v) <*> w == u <*> (v <*> w) -}
-   ((pure (.) <*> pure f) <*> (pure g <*> x)) <*> y
-==   {- ((pure (.) <*> u) <*> v) <*> w == u <*> (v <*> w) -}
-   (((pure (.) <*> (pure (.) <*> pure f)) <*> pure g) <*> x) <*> y
-==   {- ((pure (.) <*> u) <*> v) <*> w == u <*> (v <*> w) -}
-   (((((pure (.) <*> pure (.)) <*> pure (.)) <*> pure f) <*> pure g) <*> x) <*> y
-==   {- pure f <*> pure x == pure (f x) -}
-   ((((pure ((.) (.)) <*> pure (.)) <*> pure f) <*> pure g) <*> x) <*> y
-==   {- pure f <*> pure x == pure (f x) -}
-   (((pure ((.) (.) (.)) <*> pure f) <*> pure g) <*> x) <*> y
-==   {- pure f <*> pure x == pure (f x) -}
-   ((pure ((.) (.) (.) f) <*> pure g) <*> x) <*> y
-==   {- pure f <*> pure x == pure (f x) -}
-   (pure ((.) (.) (.) f g) <*> x) <*> y
-==   {- liftA2 def -}
-   liftA2 ((.)(.)(.) f g) x y
-==   {- c2 def -}
-   liftA2 (f `c2` g) x y
+foo a b = liftA2 (<*>) a b
 
-
-
--- Zoom in
--- Spec: dotp f m x y == liftA2 f (fmap m x) (fmap m y)
-   dotp f m (LB a) (LB b)
-==   {- dotp spec -}
-   liftA2 f (fmap m (LB a)) (fmap m (LB b))
-==   {- fmap on TB Z -}
-   liftA2 f (LB $ m a)) (LB $ m b)
-==   {- dotp spec -}
-   LB $ f (m a) (m b)
-
-   dotp f m (BB s) (BB t) 
-==   {- spec -}   
-   liftA2 f (fmap m (BB s)) (fmap m (BB t))
-==   {- fmap on TB (S n) -}
-   liftA2 f (BB . fmap<TB n> (fmap<Pair> m) s) (BB . fmap<TB n> (fmap<Pair> m) (BB t))
-==   {- liftA2 on TB (S n) -}
-   BB $ liftA2 (liftA2<Pair> f) (fmap<TB n> (fmap<Pair> m) s) (fmap<TB n> (fmap<Pair> m) t)
-==  {- dotp spec -}
-   BB $ dotp (liftA2 f) (fmap m) s t
-
--- Let's see what dot becomes
--- Spec: dot x y = 
---        getSum . fold . fmap (Sum . getProduct) $ 
---          liftA2 mappend (fmap Product x) (fmap Product y)
--- Leaf case :: TB Z
-   dot (LB a) (LB b)
-==   {- def -}   
-   getSum . fold  . fmap (Sum . getProduct) $ liftA2 mappend (fmap Product (LB a)) (fmap Product (LB b))
-==   {- fmap on TB Z (derivation) -}   
-   getSum . fold  . fmap (Sum . getProduct) $ liftA2 mappend (LB (Product a)) (LB (Product b))
-==   {- liftA2 on TB Z (derivation) -}
-   getSum . fold  . fmap (Sum . getProduct) $ LB (Product a) `mappend` (Product b)
-==   {- liftA2 on TB Z (derivation) -}
-   getSum . fold  . fmap (Sum . getProduct) $ LB (Product a) `mappend` (Product b)
-==   {- mappend on Product -}   
-   getSum . fold  . fmap (Sum . getProduct) $ LB (Product (a * b))
-==   {- fmap on TB Z (derivation) -}
-   getSum . fold $ LB (Sum (a * b) 
-==   {- fold on TB Z (derivation) -}
-   getSum $ Sum (a * b)    
-==   {- getSum def -}
-   a * b
-
--- Branch case :: TB (S n)
-   dot (BB s) (BB t)
-==   {- def -}   
-   getSum . fold  . fmap (Sum . getProduct) $ liftA2 mappend (fmap Product (BB s)) (fmap Product (BB t))
-==   {- fmap f (liftA2 g x y) == liftA2 (f `c2` g) x y -}
-   getSum . fold  $ liftA2 (Sum . getProduct `c2` mappend) (fmap Product (BB s)) (fmap Product (BB t))
-==   {- liftA2 f (fmap m s) (fmap m t) == dotp f m s t -}
-   getSum . fold $ dotp (Sum . getProduct `c2` mappend) Product (BB s) (BB t)
-==   {- dotp definition -}
-   getSum . fold  $ BB $ dotp (liftA2 (Sum . getProduct `c2` mappend)) (fmap Product) s t
-==   {- fold on TB (S n) (derivation) -}
-   getSum $ fold . (fmap fold) $ dotp (liftA2 (Sum . getProduct `c2` mappend)) (fmap Product) s t
-==   {- my law -}
-   getSum . fold $ dotp (fold `c2` liftA2 (Sum . getProduct `c2` mappend)) (fmap Product) s t
-
--- generalise
--- let dotx f m x y = getSum . fold $ liftA2 f (fmap m x) (fmap m y)
-
-
-   dotx f m (BB s) (BB t) 
-==   {- spec -}
-   getSum . fold $ liftA2 f (fmap m (BB s)) (fmap m (BB t))
-==    
-   getSum . fold $ BB $ liftA2 (liftA2<Pair> f) (fmap<TB n> (fmap<Pair> m) s) (fmap<TB n> (fmap<Pair> m) t)   
-==   {- fold on TB (S n)-}
-   getSum $ fold . (fmap fold) $ liftA2 (liftA2<Pair> f) (fmap<TB n> (fmap<Pair> m) s) (fmap<TB n> (fmap<Pair> m) t)   
-
+   foo (BB s) (BB t)
+==  
+   liftA2 (<*>) (BB s) (BB t)
+==   {- rearrange -}  
+   BB app <*> BB s <*> BB t
+      where (BB app) = pure (<*>)
+== 
+   (BB $ liftA2 (<*>) app s) <*> BB t
+      where (BB app) = pure (<*>)
+== 
+   BB $ liftA2 (<*>) (liftA2 (<*>) app s) t
+      where (BB app) = pure (<*>)
+== 
+   BB $ foo (liftA2 <*> app s) t
+      where (BB app) = pure (<*>)
+== 
+   BB $ foo (foo app s) t
+      where (BB app) = pure (<*>)
