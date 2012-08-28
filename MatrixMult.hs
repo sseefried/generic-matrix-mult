@@ -29,9 +29,17 @@ dotGen (pinject, pproject) (sinject, sproject) x y =
 dot :: (Num a, Foldable f, Applicative f) => f a -> f a -> a
 dot = dotGen (Product, getProduct) (Sum, getSum)
 
+--dot' :: (Num a, Foldable f, Applicative f) => f a -> a -> f a
+--dot' x y = flip (dot x) y
+
 transpose :: (Traversable f1, Applicative f2) => f1 (f2 a) -> f2 (f1 a)
 transpose = sequenceA
 
 mmult :: (Num a, Applicative f1, Applicative f2, Applicative f3, Traversable f1, Traversable f2)
-       => f1 (f2 a) -> f2 (f3 a) -> f1 (f3 a)
-mmult m1 m2 = fmap (flip (fmap . dot) (transpose m2)) m1
+       => f1 (f2 a) -> f2 (f3 a) ->  f1 (f3 a)
+mmult = flip (fmap . flip (fmap . dot) . transpose)
+
+mmultX :: (Num a, Applicative f1, Applicative f2, Applicative f3, Traversable f1, Traversable f2)
+       => f1 (f2 a) -> f3 (f2 a) ->  f1 (f3 a)
+mmultX = (ff . ff) dot
+  where ff f = flip (fmap . f)
