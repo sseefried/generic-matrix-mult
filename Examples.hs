@@ -1,7 +1,7 @@
-{-#  #-}
 module Examples where
 
 import Control.Applicative
+import Data.Traversable
 
 import MatrixMult
 import Vec
@@ -42,6 +42,10 @@ llmat35 = ZipList [ ZipList [1,2,3,4,5]
                   , ZipList [6,7,8,9,10]
                   , ZipList [11,12,13,14,15]]
 
+vvvmat222 :: Vec Two (Vec Two (Vec Two Integer))
+vvvmat222 = ((1 `Cons` 2 `Cons` Nil) `Cons` (3 `Cons` 4 `Cons` Nil) `Cons` Nil) `Cons`
+            ((5 `Cons` 6 `Cons` Nil) `Cons` (7 `Cons` 8 `Cons` Nil) `Cons` Nil) `Cons` Nil
+
 vtmat23 :: Vec Two (Tree ((), ((), ())) Integer)
 vtmat23 = (Branch (Leaf 1) (Branch (Leaf 2) (Leaf 3))) `Cons`
          (Branch (Leaf 4) (Branch (Leaf 5) (Leaf 6))) `Cons` Nil
@@ -59,4 +63,6 @@ vtmat33 :: Vec Three (Tree ((), ((), ())) Integer)
 vtmat33 = (Branch (Leaf 10) (Branch (Leaf 11) (Leaf 12))) `Cons`
           (Branch (Leaf 13) (Branch (Leaf 14) (Leaf 15))) `Cons`
           (Branch (Leaf 16) (Branch (Leaf 17) (Leaf 18))) `Cons` Nil
+
+
 
